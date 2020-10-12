@@ -5,8 +5,6 @@ import io.circe.generic.semiauto._
 import sttp.client3._
 import sttp.client3.httpclient.zio._
 import sttp.client3.circe._
-import zio._
-import zio.duration.durationInt
 
 /*
       ___     ____  ____        __
@@ -19,84 +17,63 @@ import zio.duration.durationInt
 /*
  Scala: typed functional programming on the JVM
 
- *the* way to do FP on an "enterprise" platform
+ *The* way to do "business FP"
  */
 
 /*
- A number of features from Scala migrated (partially) to Java already:
+ "Basic" features of a functional language:
  * lambdas
- * pattern matching
  * expression-oriented
  * data classes
+ * pattern matching
  */
 
 /*
  These are all great! But there's more!
-
- All of the features above - but regular - not only for special cases!
- * Scala: more regular
- * domain modeling - immutability first, sealed, pattern matching
  * term inference
+ * higher-order types
+ * regularity
+ * metaprogramming
  * custom control structures
  */
-object JVMWars extends App {
+object JVMWars {
   /*
    Domain modeling: immutability-first, ADTs, pattern matching
    */
-  case class Author(firstName: String, lastName: String)
+  case class Address(street: String, houseNumber: Int, flatNumber: Option[Int])
 
-  sealed trait Literature
-  case class Book(title: String, author: Author) extends Literature
-  case class Magazine(title: String, number: Int, year: Int) extends Literature
+  sealed trait Entity
+  case class Person(firstName: String, lastName: String, addresses: List[Address]) extends Entity
+  case class Company(name: String, hq: Address) extends Entity
 
-  case class Shelf(items: List[Literature])
+  def allStreets(es: Set[Entity]): Set[String] =
+    es.flatMap {
+      case Person(firstName, lastName, addresses) => addresses.toSet
+      case Company(name, hq)                      => Set(hq)
+    }.map(_.street)
 
-  type RoomName = String
-  case class Apartment(shelves: Map[RoomName, Shelf])
+  case class ValidationResponse(valid: Boolean)
 
-  def allBooksByShakespeare(a: Apartment): Set[String] =
-    a.shelves.values.toSet.flatMap((_: Shelf).items).collect { case Book(title, Author(_, "Shakespeare")) =>
-      title
-    }
+  /*
+   Principled metaprogramming
+   */
+  implicit val addressEncoder: Encoder[Address] = deriveEncoder[Address] // can be also written by hand, if needed
+  implicit val responseDecoder: Decoder[ValidationResponse] = deriveDecoder[ValidationResponse]
 
-  // ZIO:         composable asynchronous & concurrent programming library for Scala
+  /*
+   Type & term inference
+   Embedded DSLs
+   Everything is a value
+   */
+  def validateAddress(address: Address) = send(
+    basicRequest
+      .post(uri"http://example.org")
+      .body(Address("xyz", 10, Some(12)))
+      .response(asJson[ValidationResponse])
+  )
+
   // sttp client: HTTP client library for Scala
   // circe:       JSON library for Scala
-  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
-    case class OrderRequest(books: List[Book])
-    case class OrderResponse(price: Long)
-
-    /*
-     Principle metaprogramming
-     */
-    implicit val bookEncoder: Encoder[Book] = deriveEncoder[Book]
-    implicit val requestEncoder: Encoder[OrderRequest] = deriveEncoder[OrderRequest] // can be also written by hand, if needed
-    implicit val responseDecoder: Decoder[OrderResponse] = deriveDecoder[OrderResponse]
-
-    /*
-     Type & term inference
-     Embedded DSLs
-     Everything is a value
-     */
-    def orderBooks(books: List[Book]) = send(
-      basicRequest
-        .post(uri"http://amazing.shop")
-        .body(OrderRequest(books))
-        .response(asJson[OrderResponse])
-    )
-
-    val retryStrategy = Schedule.recurs(10) && Schedule.exponential(10.milliseconds)
-    ZIO
-      .tupledPar(
-        orderBooks(
-          List(Book("Introduction to Algorithms", Author("Thomas", "Cormen")), Book("The Colour of Magic", Author("Terry", "Pratchett")))
-        )
-          .retry(retryStrategy),
-        orderBooks(List(Book("Lalka", Author("Bolesław", "Prus")))).retry(retryStrategy).timeout(1.second)
-      )
-      .provideCustomLayer(HttpClientZioBackend.layer())
-      .exitCode
-  }
 }
 
 /*
