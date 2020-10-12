@@ -34,11 +34,10 @@ import sttp.client3.circe._
  * higher-order types
  * regularity
  * metaprogramming
- * custom control structures
  */
 object JVMWars {
   /*
-   Domain modeling: immutability-first, ADTs, pattern matching
+   Domain modeling: ADTs, pattern matching
    */
   case class Address(street: String, houseNumber: Int, flatNumber: Option[Int])
 
@@ -46,16 +45,24 @@ object JVMWars {
   case class Person(firstName: String, lastName: String, addresses: List[Address]) extends Entity
   case class Company(name: String, hq: Address) extends Entity
 
-  def allStreets(es: Set[Entity]): Set[String] =
-    es.flatMap {
+  // Productivity gain #1: immutability-first
+
+  def allStreets(es: Set[Entity]): Set[String] = es
+    .flatMap {
       case Person(firstName, lastName, addresses) => addresses.toSet
       case Company(name, hq)                      => Set(hq)
-    }.map(_.street)
+    }
+    .map(_.street)
+
+  // Productivity gain #2: concise, but readable, type-safe code
+
+  //
 
   case class ValidationResponse(valid: Boolean)
 
   /*
    Principled metaprogramming
+   Productivity gain #3: compile-time proofs instead of run-time tests
    */
   implicit val addressEncoder: Encoder[Address] = deriveEncoder[Address] // can be also written by hand, if needed
   implicit val responseDecoder: Decoder[ValidationResponse] = deriveDecoder[ValidationResponse]
@@ -72,6 +79,8 @@ object JVMWars {
       .response(asJson[ValidationResponse])
   )
 
+  // Productivity gain #4: libraries, not frameworks
+
   // sttp client: HTTP client library for Scala
   // circe:       JSON library for Scala
 }
@@ -82,6 +91,8 @@ object JVMWars {
  * make illegal states unrepresentable
  * computers are intelligent enough to prove a lot of basic properties
  * tests should sample the rest.
+
+ Productivity gain #5: auto-complete, explorable APIs and data structures
  */
 
 /*
