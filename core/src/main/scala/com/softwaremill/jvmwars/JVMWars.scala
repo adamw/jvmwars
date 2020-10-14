@@ -113,6 +113,7 @@ object JVMWars {
                                  |___/
 
  * https://scala.page
+ * https://scalatimes.com
  * https://twitter.com/adamwarski
  * https://github.com/adamw/jvmwars
  */
